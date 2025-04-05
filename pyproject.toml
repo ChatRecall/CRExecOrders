@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "CRExecOrders"
+version = "0.1.0"
+dependencies = [
+    "requests>=2.31.0",
+
+]
+
+[tool.setuptools]
+packages = ["CRExecOrders"]
+
+[project.scripts]
+crlibrary = "CRExecOrders.CRExecOrders:CRExecOrders"
