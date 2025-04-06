@@ -1,23 +1,16 @@
 import subprocess
 import sys
 
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QFileDialog,
-                               QListWidget, QStatusBar, QMessageBox,
-                               QTextEdit, QComboBox, QPushButton,
-                               QListWidgetItem,
-                               QRadioButton, QButtonGroup, QVBoxLayout, QHBoxLayout,
-                               QListView, QLineEdit, QSpinBox)
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel,
+                               QStatusBar, QMessageBox, QComboBox, QPushButton,QHBoxLayout, QLineEdit, QSpinBox)
 from PySide6.QtGui import QIcon
-from PySide6.QtCore import Qt, QDir, QDate
-
-from typing import Set
+from PySide6.QtCore import Qt, QDate
 from pathlib import Path
-import json
 
 import logging
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format = '%(name)s - %(levelname)s - %(message)s (line: %(lineno)d)',
     handlers=[
         logging.StreamHandler(),  # Log to console
@@ -29,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 from WrapSideSix.layouts.grid_layout import WSGridLayoutHandler, WSGridRecord, WSGridPosition
 from WrapSideSix.toolbars.toolbar_icon import WSToolbarIcon, DropdownItem
-from WrapSideSix.widgets.line_edit_widget import WSLineButton
 from WrapSideSix.widgets.list_widget import WSListSelectionWidget, WSSortOrder
 from WrapConfig import INIHandler, RuntimeConfig
 from WrapCapExecOrders import (ExecutiveOrderManager, ExecutiveOrderDownloader)
@@ -290,7 +282,7 @@ class CRExecOrder(QMainWindow):
 
     def update_default_attributes(self):
         self.ini_handler = INIHandler(self.run_time.ini_file_name)
-        # Reinitiated so self.ini_handler.reload() not needed
+        # Re-initiated so self.ini_handler.reload() not needed
         self.eo_data_dir = self.ini_handler.read_value('CRExecOrder', 'exec_ord_directory') or self.eo_data_dir
 
     def connect_signals(self):

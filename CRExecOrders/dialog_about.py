@@ -1,7 +1,6 @@
 import sys
-from PySide6.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFrame
+from PySide6.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QPushButton, QFrame
 from PySide6.QtCore import Qt
-from WrapConfig import RuntimeConfig
 from version import __version__ as program_version
 
 
@@ -21,10 +20,6 @@ class AboutDialog(QDialog):
         # logo_label.setPixmap(pixmap)
         # layout.addWidget(logo_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Application name and version
-        runtime = RuntimeConfig()
-        db_version = runtime.get_runtime_variable('db_version_version')
-
         # Description with versions
         description_label = QLabel("ChatRecall Executive Order Downloader", self)
         layout.addWidget(description_label, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -41,8 +36,8 @@ class AboutDialog(QDialog):
 
         # Divider
         line = QFrame(self)
-        line.setFrameShape(QFrame.HLine)
-        line.setFrameShadow(QFrame.Sunken)
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(line)
 
         # Close button

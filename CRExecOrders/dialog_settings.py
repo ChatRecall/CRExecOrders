@@ -1,9 +1,7 @@
 #  dialog_settings.py
 
-from PySide6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QDialogButtonBox, QLineEdit, QLabel, QMessageBox,
-                               QStyle, QComboBox, QFileDialog)
+from PySide6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QDialogButtonBox, QLabel, QMessageBox)
 from PySide6.QtCore import Qt, QDir
-from pathlib import Path
 
 import logging
 
@@ -12,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 from WrapSideSix.layouts.grid_layout import (WSGridRecord, WSGridLayoutHandler, WSGridPosition)
 from WrapSideSix.io.ws_io import WSGuiIO
-from WrapSideSix.widgets.line_edit_widget import WSLineButton, WSLineButtonDirectory
+from WrapSideSix.widgets.line_edit_widget import WSLineButtonDirectory
 from WrapConfig import INIHandler, RuntimeConfig
 
 import WrapSideSix.icons.icons_mat_des
@@ -53,7 +51,7 @@ class SettingsDialog(QDialog):
             ]
 
         grid_layout_handler.add_widget_records(main_grid_widgets)
-        self.layout.addWidget(grid_layout_handler.get_layout_widget())
+        self.layout.addWidget(grid_layout_handler.as_widget())
         self.setLayout(self.layout)
 
     def connect_signals(self):
