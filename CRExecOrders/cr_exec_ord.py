@@ -2,7 +2,8 @@ import subprocess
 import sys
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel,
-                               QStatusBar, QMessageBox, QComboBox, QPushButton,QHBoxLayout, QLineEdit, QSpinBox)
+                               QStatusBar, QMessageBox, QComboBox, QPushButton,QHBoxLayout, QSpinBox,
+                               QTabWidget)
 from PySide6.QtGui import QIcon
 from PySide6.QtCore import Qt, QDate
 from pathlib import Path
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 from WrapSideSix.layouts.grid_layout import WSGridLayoutHandler, WSGridRecord, WSGridPosition
 from WrapSideSix.toolbars.toolbar_icon import WSToolbarIcon, DropdownItem
 from WrapSideSix.widgets.list_widget import WSListSelectionWidget, WSSortOrder
+from WrapSideSix import WSLineButtonClear
 from WrapConfig import INIHandler, RuntimeConfig
 from WrapCapExecOrders import (ExecutiveOrderManager, ExecutiveOrderDownloader)
 
@@ -32,10 +34,15 @@ from dialog_settings import SettingsDialog
 import WrapSideSix.icons.icons_mat_des
 WrapSideSix.icons.icons_mat_des.qInitResources()
 
+PROGRAM_TITLE = "ChatRecall Executive Order Downloader"
+INITIAL_STATUS_BAR_MESSAGE = "Welcome to ChatRecall Executive Orders"
+BEG_YEAR = 1994
+LIBRARY_FILE_NAME = "Executive_Order_library"
+
 class CRExecOrder(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ChatRecall Executive Order Downloader")
+        self.setWindowTitle(PROGRAM_TITLE)
         self.setMinimumWidth(800)
 
         # Set executive order manager
@@ -46,10 +53,15 @@ class CRExecOrder(QMainWindow):
         self.setCentralWidget(central_widget)
         self.status_bar = QStatusBar()
 
-        self.download_grid_layout_handler = WSGridLayoutHandler()
-        self.filter_grid_layout_handler = WSGridLayoutHandler()
+        self.download_years_handler = WSGridLayoutHandler()
+        self.download_eo_box_handler = WSGridLayoutHandler()
+
+        self.not_download_grid_layout_handler = WSGridLayoutHandler()
+        self.downloaded_grid_layout_handler = WSGridLayoutHandler()
         self.list_grid_layout_handler = WSGridLayoutHandler()
         self.main_grid_layout_handler = WSGridLayoutHandler()
+
+        self.tab_widget = QTabWidget()
 
         self.toolbar = WSToolbarIcon('toolbar')
 
@@ -58,18 +70,22 @@ class CRExecOrder(QMainWindow):
 
         self.download_year_end_combobox = QSpinBox()
         self.download_year_begin_combobox = QSpinBox()
-        self.download_year_begin_combobox.setRange(1937, current_year)
-        self.download_year_end_combobox.setRange(1937, current_year)
+        self.download_year_begin_combobox.setRange(BEG_YEAR, current_year)
+        self.download_year_end_combobox.setRange(BEG_YEAR, current_year)
         self.download_year_begin_combobox.setValue(current_year)
         self.download_year_end_combobox.setValue(current_year)
 
-        self.keyword_search = QLineEdit()
+        self.keyword_search = WSLineButtonClear() #QLineEdit()
         self.president_search = QComboBox()
 
-        self.not_downloaded_list = WSListSelectionWidget(multi_select=True)
+        not_downloaded_actions = {
+            "Download Selection": lambda item_id, item_name: self.not_downloaded_on_item_right_clicked(item_id, item_name),
+        }
+
+        self.not_downloaded_list = WSListSelectionWidget(multi_select=True, actions=not_downloaded_actions)
         self.downloaded_list = WSListSelectionWidget(multi_select=False)
 
-        self.download_library_button = QPushButton("Download List")
+        self.download_library_button = QPushButton("Fetch List")
         icon_select = QIcon(":/icons/mat_des/download_24dp.png")  # Path to your icon file
         self.download_library_button.setIcon(icon_select)
 
@@ -85,37 +101,11 @@ class CRExecOrder(QMainWindow):
         icon_none = QIcon(":/icons/mat_des/clear_all_24dp.png")
         self.select_none_button.setIcon(icon_none)
 
-        # # Radio buttons
-        # # Create radio buttons
-        # self.all_button = QRadioButton("All")
-        # self.downloaded_button = QRadioButton("Downloaded")
-        # self.not_downloaded_button = QRadioButton("Not Downloaded")
-        #
-        # # Set the default selection (optional)
-        # self.all_button.setChecked(True)
-        #
-        # # Create a button group to ensure only one button can be selected at a time
-        # self.button_group = QButtonGroup(self)
-        # self.button_group.addButton(self.all_button)
-        # self.button_group.addButton(self.downloaded_button)
-        # self.button_group.addButton(self.not_downloaded_button)
-        #
-        # # Create layout and add the radio buttons
-        # self.radio_layout = QHBoxLayout()
-        # self.radio_layout.addWidget(self.all_button)
-        # self.radio_layout.addWidget(self.downloaded_button)
-        # self.radio_layout.addWidget(self.not_downloaded_button)
-        #
-        # self.radio_widget = QWidget()
-        # self.radio_widget.setLayout(self.radio_layout)
-
         # Dialogs
         self.dialog_about = AboutDialog(self)
         self.dialog_settings = SettingsDialog(self)
 
         self.run_time = RuntimeConfig()
-        # program_dir = self.run_time.program_dir
-        # self.library_path = program_dir / "Executive_Order_library"
         self.library_path = None
         self.eo_data_dir = None
         self.ini_handler = None
@@ -129,24 +119,20 @@ class CRExecOrder(QMainWindow):
         if not self.eo_data_dir:
             self.show_settings()
 
-        if not self.library_path:
-            self.library_path = f"{self.eo_data_dir}/Executive_Order_library"
-        else:
+        if not self.eo_data_dir:
             raise ValueError("eo_data_dir must be set before use")
+
+        self.library_path = Path(self.eo_data_dir) / LIBRARY_FILE_NAME
 
         self.downloader = ExecutiveOrderDownloader(doc_dir=self.eo_data_dir, manager=self.manager)
         self.manager.load_from_file(self.library_path)
         self.populate_not_downloaded_listing()
         self.populate_downloaded_listing()
-
+        self.toolbar.hide_action_by_name("filter")
 
     # init helper methods
     def init_ui(self):
-        download_grid_widgets = [
-            WSGridRecord(widget=QLabel("Years to download (1937 to current):"),
-                         position=WSGridPosition(row=0, column=0),
-                         col_span=3, alignment=Qt.AlignmentFlag.AlignLeft),
-
+        download_years_widgets = [
             WSGridRecord(widget=QLabel("Beg year:"),
                          position=WSGridPosition(row=1, column=0),
                          col_stretch=0, alignment=Qt.AlignmentFlag.AlignLeft),
@@ -163,79 +149,63 @@ class CRExecOrder(QMainWindow):
 
             WSGridRecord(widget=self.download_library_button,
                          position=WSGridPosition(row=1, column=2),
-                         row_span=2, alignment=Qt.AlignmentFlag.AlignLeft)
+                         row_span=2, alignment=Qt.AlignmentFlag.AlignLeft),
         ]
-        self.download_grid_layout_handler.add_widget_records(download_grid_widgets)
 
-        filter_grid_widgets =[
-            WSGridRecord(widget=QLabel("Keyword"),
+        self.download_years_handler.add_widget_records(download_years_widgets)
+
+        download_eo_box_widgets = [
+            WSGridRecord(widget=self.download_selected_button,
+                         position=WSGridPosition(row=0, column=0),
+                         col_stretch=0, alignment=Qt.AlignmentFlag.AlignLeft),
+            WSGridRecord(widget=self.download_all_button,
+                         position=WSGridPosition(row=0, column=1),
+                         col_stretch=0, alignment=Qt.AlignmentFlag.AlignLeft),
+            WSGridRecord(widget=self.select_none_button,
+                         position=WSGridPosition(row=0, column=2),
+                         col_stretch=0, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        ]
+        self.download_eo_box_handler.add_widget_records(download_eo_box_widgets)
+
+        not_download_grid_widgets = [
+             WSGridRecord(widget=self.download_years_handler.as_groupbox_widget(title=f"Fetch/Update Executive Order List ({BEG_YEAR} to current)"),
+                         position=WSGridPosition(row=0, column=0),
+                         alignment=Qt.AlignmentFlag.AlignCenter),
+
+            WSGridRecord(widget=self.download_eo_box_handler.as_groupbox_widget(title="Download Executive Orders"),
+                         position=WSGridPosition(row=0, column=1),
+                         alignment=Qt.AlignmentFlag.AlignCenter),
+
+            WSGridRecord(widget=self.not_downloaded_list,
+                         position=WSGridPosition(row=1, column=0),
+                         col_span=2),
+        ]
+        self.not_download_grid_layout_handler.add_widget_records(not_download_grid_widgets)
+
+        downloaded_grid_widgets =[
+            WSGridRecord(widget=QLabel("Keyword Search:"),
                          position=WSGridPosition(row=0, column=0),
                          col_stretch=0
                          ), # alignment=Qt.AlignmentFlag.AlignLeft
             WSGridRecord(widget=self.keyword_search,
                          position=WSGridPosition(row=0, column=1)),
 
-            # WSGridRecord(widget=QLabel("President"),
-            #              position=WSGridPosition(row=1, column=0),
-            #              col_stretch=0),
-            # WSGridRecord(widget=self.president_search,
-            #              position=WSGridPosition(row=1, column=1))
-
-        ]
-        self.filter_grid_layout_handler.add_widget_records(filter_grid_widgets)
-
-        button_box = QHBoxLayout()
-        button_box.addWidget(self.download_selected_button)
-        button_box.addWidget(self.download_all_button)
-        button_box.addWidget(self.select_none_button)
-        button_box_widget = QWidget()  # Create a QWidget first
-        button_box_widget.setLayout(button_box)  # Set the layout separately
-
-
-        list_grid_widgets = [
-            WSGridRecord(widget=QLabel("Not Downloaded"),
-                         position=WSGridPosition(row=0, column=0),
-                         col_stretch=1),
-            WSGridRecord(widget=self.not_downloaded_list,
-                         position=WSGridPosition(row=1, column=0),
-                         col_stretch=1),
-
-            WSGridRecord(widget=QLabel("Downloaded"),
-                         position=WSGridPosition(row=0, column=1),
-                         col_stretch=2),
-            WSGridRecord(widget=self.downloaded_list,
-                         position=WSGridPosition(row=1, column=1),
-                         col_stretch=2),
-
-            WSGridRecord(widget=button_box_widget,
-                         position=WSGridPosition(row=2, column=0),
-                         alignment=Qt.AlignmentFlag.AlignCenter)
-
-        ]
-
-        self.list_grid_layout_handler.add_widget_records(list_grid_widgets)
-
-        main_grid_widgets = [
-            WSGridRecord(widget=self.download_grid_layout_handler.as_widget(),
-                         position=WSGridPosition(row=0, column=0),
-                         col_span=1, col_stretch=1), # , alignment=Qt.AlignmentFlag.AlignJustify
-
-            WSGridRecord(widget=self.filter_grid_layout_handler.as_widget(),
-                         position=WSGridPosition(row=0, column=1),
-                         col_span=1, col_stretch=3),
-
             WSGridRecord(widget=QLabel(""),
                          position=WSGridPosition(row=1, column=0),
                          col_span=2),
 
-            WSGridRecord(widget=self.list_grid_layout_handler.as_widget(),
-                         position=WSGridPosition(row=2, column=0),
-                         col_span=2)
+            WSGridRecord(widget=self.downloaded_list,
+                             position=WSGridPosition(row=2, column=0),
+                             col_span=2),
+
         ]
+        self.downloaded_grid_layout_handler.add_widget_records(downloaded_grid_widgets)
 
-        self.main_grid_layout_handler.add_widget_records(main_grid_widgets)
+        self.tab_widget.addTab(self.not_download_grid_layout_handler.as_widget(), "Not Downloaded")
+        self.tab_widget.addTab(self.downloaded_grid_layout_handler.as_widget(), "Downloaded")
 
-        self.setCentralWidget(self.main_grid_layout_handler.as_widget())
+        self.setCentralWidget(self.tab_widget)
 
     def init_menu(self):
         pass
@@ -286,20 +256,35 @@ class CRExecOrder(QMainWindow):
         self.eo_data_dir = self.ini_handler.read_value('CRExecOrder', 'exec_ord_directory') or self.eo_data_dir
 
     def connect_signals(self):
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
+
         self.download_year_begin_combobox.valueChanged.connect(self.update_end_year)
         self.download_year_end_combobox.valueChanged.connect(self.update_begin_year)
 
-        self.download_library_button.clicked.connect(self.process_button_action)
-
-        self.downloaded_list.doubleClicked.connect(self.open_selected_eo)
+        self.download_library_button.clicked.connect(self.download_library_button_action)
+        self.downloaded_list.doubleClicked.connect(self.downloaded_on_double_click)
 
         self.download_selected_button.clicked.connect(self.download_library_list_selected)
-
         self.download_all_button.clicked.connect(self.download_library_list_all)
         self.select_none_button.clicked.connect(self.select_none_not_downloaded)
 
+        self.not_downloaded_list.rightClicked.connect(self.not_downloaded_on_item_right_clicked)
+
+    # Tab change methods
+    def on_tab_changed(self, index):
+        # Get the tab text (optional)
+        tab_text = self.tab_widget.tabText(index)
+        # logger.info(f"Tab changed to: {tab_text}")
+
+        if tab_text == "Not Downloaded":
+            self.toolbar.hide_action_by_name("filter")
+        elif tab_text == "Downloaded":
+            self.toolbar.show_action_by_name("filter")
+        else:
+            logger.error("Unknown Tab")
+
     # Status bar methods
-    def update_status_bar(self, message="Welcome to ChatRecall Executive Orders", duration=5000):
+    def update_status_bar(self, message=INITIAL_STATUS_BAR_MESSAGE, duration=5000):
         self.statusBar().showMessage(message, duration)
 
     def clear_status_bar(self):
@@ -315,8 +300,8 @@ class CRExecOrder(QMainWindow):
         if value > self.download_year_end_combobox.value():
             self.download_year_end_combobox.setValue(value)
 
-    # Evaluate button actions
-    def process_button_action(self):
+    # Button actions
+    def download_library_button_action(self):
         logger.debug("Start downloading library entries")
         start_year = self.download_year_begin_combobox.value()
         end_year = self.download_year_end_combobox.value()
@@ -329,26 +314,6 @@ class CRExecOrder(QMainWindow):
         self.manager.save_to_file(file_name=self.library_path)
         logger.debug("Done downloading library entries")
         self.populate_not_downloaded_listing()
-
-    def populate_not_downloaded_listing(self):
-        library_titles_prelim = self.manager.get_not_downloaded_documents()
-        library_titles = self.manager.get_display_titles(library_titles_prelim)
-        self.not_downloaded_list.populate_list(
-            [(doc_id, display_title) for doc_id, display_title in library_titles.items()]
-        )
-
-    def populate_downloaded_listing(self):
-        library_titles_prelim = self.manager.get_downloaded_documents()
-        library_titles = self.manager.get_display_titles(library_titles_prelim)
-        # results = {
-        #     doc: details
-        #     for doc, details in self.manager.get_display_titles().items()
-        # }
-        # print(results)
-        self.downloaded_list.populate_list(
-            [(doc_id, display_title) for doc_id, display_title in library_titles.items()],
-            sort_mode=WSSortOrder.DESCENDING
-        )
 
     def download_library_list_selected(self):
         """Get selected items' doc_ids (keys)"""
@@ -379,7 +344,27 @@ class CRExecOrder(QMainWindow):
         self.select_all_not_downloaded()
         self.download_library_list_selected()
 
-    def open_selected_eo(self, doc_id, doc_name):
+    def select_none_not_downloaded(self):
+        self.not_downloaded_list.clearSelection()
+
+    # Populate actions
+    def populate_not_downloaded_listing(self):
+        library_titles_prelim = self.manager.get_not_downloaded_documents()
+        library_titles = self.manager.get_display_titles(library_titles_prelim)
+        self.not_downloaded_list.populate_list(
+            [(doc_id, display_title) for doc_id, display_title in library_titles.items()]
+        )
+
+    def populate_downloaded_listing(self):
+        library_titles_prelim = self.manager.get_downloaded_documents()
+        library_titles = self.manager.get_display_titles(library_titles_prelim)
+        self.downloaded_list.populate_list(
+            [(doc_id, display_title) for doc_id, display_title in library_titles.items()],
+            sort_mode=WSSortOrder.DESCENDING
+        )
+
+    # Double click and Right click methods
+    def downloaded_on_double_click(self, doc_id, doc_name):
         """Opens the selected executive order's PDF file."""
         logger.debug(f"Received in open_selected_eo -> doc_id={doc_id} (type: {type(doc_id)}), doc_name={doc_name}")
 
@@ -416,12 +401,12 @@ class CRExecOrder(QMainWindow):
         except Exception as e:
             logger.error(f"Error opening PDF: {e}")
 
-    def select_all_not_downloaded(self):
-        for i in range(self.not_downloaded_list.count()):
-            self.not_downloaded_list.item(i).setSelected(True)
-
-    def select_none_not_downloaded(self):
-        self.not_downloaded_list.clearSelection()
+    def not_downloaded_on_item_right_clicked(self, item_id, item_name):
+        logger.debug(f"Right Clicked: ID={item_id}, Name={item_name}")
+        self.downloader.download_single(item_id, self.library_path)
+        self.populate_not_downloaded_listing()
+        self.populate_downloaded_listing()
+        self.manager.save_to_file(file_name=self.library_path)
 
     # Filter actions
     def filter_action(self):
@@ -442,14 +427,28 @@ class CRExecOrder(QMainWindow):
     def show_settings(self):
         logger.debug("showing dialog")
         if self.dialog_settings.exec():
-            logger.info("after if")
+            logger.info("Settings dialog accepted. Updating attributes...")
             self.update_default_attributes()
-            logger.info("after update")
+            logger.debug("Recreating ExecutiveOrderManager and downloader with updated data dir.")
 
+            # Recreate manager and downloader to pick up new paths
+            self.manager = ExecutiveOrderManager()
+            self.downloader = ExecutiveOrderDownloader(doc_dir=self.eo_data_dir, manager=self.manager)
+
+            # Load new library file if needed
+            self.library_path = Path(self.eo_data_dir) / LIBRARY_FILE_NAME
+            self.manager.load_from_file(self.library_path)
+
+            # Repopulate listings
+            self.populate_not_downloaded_listing()
+            self.populate_downloaded_listing()
 
     # Other widget actions
 
     # Helper methods
+    def select_all_not_downloaded(self):
+        for i in range(self.not_downloaded_list.count()):
+            self.not_downloaded_list.item(i).setSelected(True)
 
     def show_not_implemented_dialog(self):
         QMessageBox.information(self, "Not Implemented", "This feature is not yet implemented.", QMessageBox.StandardButton.Ok)

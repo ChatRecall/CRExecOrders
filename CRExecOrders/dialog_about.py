@@ -27,8 +27,6 @@ class AboutDialog(QDialog):
         name_label = QLabel(f"Program version: {program_version}", self)
         layout.addWidget(name_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # db_version_label = QLabel(f"Database version: {db_version}")
-        # layout.addWidget(db_version_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Copyright or any other additional info
         copyright_label = QLabel("© 2024 ChatRecall", self)

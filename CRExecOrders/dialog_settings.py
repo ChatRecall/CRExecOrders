@@ -26,11 +26,9 @@ class SettingsDialog(QDialog):
         self.ini_handler = INIHandler(self.run_time.ini_file_name)
         self.settings_io = None
 
-        # self.eo_data_dir = WSLineButton(button_icon=":/icons/mat_des/folder_24dp.png", button_action=self.select_exec_ord_directory)
         self.eo_data_dir = WSLineButtonDirectory()
 
         self.project_dir = QDir.homePath()
-
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save |
                                            QDialogButtonBox.StandardButton.Cancel)
@@ -57,26 +55,6 @@ class SettingsDialog(QDialog):
     def connect_signals(self):
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-
-    # def select_exec_ord_directory(self):
-    #     # Get the path from the line edit
-    #     current_path = self.eo_data_dir.text().strip()
-    #
-    #     # Use it if it's a valid directory, otherwise use the home directory
-    #     start_dir = current_path if Path(current_path).is_dir() else str(Path.home())
-    #
-    #     folder_path = QFileDialog.getExistingDirectory(
-    #         self,
-    #         "Select a folder",
-    #         start_dir  # Starting directory, leave empty for default
-    #     )
-    #     if folder_path:
-    #         logger.debug(f"Selected folder: {folder_path}")
-    #         self.eo_data_dir.setText(folder_path)
-    #
-    #         # directory = folder_path  # Change this to your target directory
-    #         # files = [f.name for f in Path(directory).iterdir() if f.is_file()]
-
 
     def set_fields(self):
         try:
